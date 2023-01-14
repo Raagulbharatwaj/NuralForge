@@ -11,10 +11,9 @@ class AutoExample:
             self.__setattr__(key, value)
 
     def preprocess(self):
-        for field_name in self.tokenizable_fields:
-            field_value = getattr(self, field_name)
-            field_value = " ".join(str(field_value).split())
-            tokenized_field = self.tokenizer.encode(field_value)
+        tokenized_fields = {field_name: self.tokenizer.encode(" ".join(str(getattr(self, field_name)).split()))
+                            for field_name in self.tokenizable_fields}
+        for field_name, tokenized_field in tokenized_fields.items():
             input_ids = tokenized_field
             token_type_ids = [1] * len(tokenized_field)
             attention_mask = [1] * len(input_ids)
@@ -29,10 +28,11 @@ class AutoExample:
             setattr(self, f"{field_name}_input_ids", input_ids)
             setattr(self, f"{field_name}_token_type_ids", token_type_ids)
             setattr(self, f"{field_name}_attention_mask", attention_mask)
+        for field_name in self.tokenizable_fields:
             delattr(self, field_name)
 
     def get_fields(self):
-        fields      = list(vars(self))
+        fields = list(vars(self))
         skip_fields = ["tokenizer", "tokenizable_fields", "max_len"]
         return [field for field in fields if field not in skip_fields]
 
@@ -43,11 +43,11 @@ class PreprocessDataFrame:
         self.tokenizable_fields = tokenizable_fields
         self.max_len = max_len
         self.tokenizer = tokenizer
-        self.examples  = []
+        self.examples = []
 
     def generate_examples(self):
-        df     = self.df
-        keys   = df.columns.tolist()
+        df = self.df
+        keys = df.columns.tolist()
         for i in df.index:
             kwargs = {}
             for key in keys:
@@ -58,12 +58,10 @@ class PreprocessDataFrame:
 
     def generate_dataset_dict(self):
         fields = self.examples[0].get_fields()
-        dataset_dict = {}
-        for field in fields:
-            dataset_dict[field] = []
+        dataset_dict = {field: [] for field in fields}
         for item in self.examples:
-            for key in dataset_dict:
-                dataset_dict[key].append(getattr(item, key))
-        for key in dataset_dict:
-            dataset_dict[key] = np.array(dataset_dict[key])
+            for field in fields:
+                dataset_dict[field].append(getattr(item, field))
+        for field in fields:
+            dataset_dict[field] = np.array(dataset_dict[field])
         return dataset_dict
